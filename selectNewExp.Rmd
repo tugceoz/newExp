@@ -1,0 +1,367 @@
+---
+title: "Select New Experiments"
+author: "Tugce Ozturk"
+date: "January 21, 2017"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Load in libraries
+```{r}
+library(dplyr)
+library(ggplot2)
+library(factoextra)
+library(NbClust)
+library(GGally)
+library(plotly)
+library(corrplot)
+```
+
+## Load in Pareto table
+```{r}
+pareto.table <- readr::read_csv("paretoTable.csv", col_names = TRUE)
+```
+
+
+## Partition the dataset.  
+```{r}
+pareto.IO <- pareto.table%>% select(Ax, Bx, Dx,
+         Cx, Fx, Ex, Gx, Hx, Ix, Jx, Kx, Lx, Mx, Nx)
+colnames(pareto.IO) <- c("Ax", "Bx", "Dx", "Cx", "Fx", "Ex", "Gx","Hx", "Ix", "Jx","Kx","Lx", "Mx", "Nx")
+```
+
+
+## Distributions for each of the input and mean of variables. 
+```{r}
+ggplot(data = reshape2::melt(pareto.IO)) +
+    geom_histogram(bins = 25, fill = "blue", mapping = aes(x = value)) +
+    facet_wrap(~variable, scales = "free")+theme_bw()
+```
+
+
+## Standardize the variables
+```{r}
+df <- as.data.frame(scale(pareto.IO), center = TRUE, scale = TRUE)
+df_output_mean <- df%>%select("Gx","Hx", "Ix", "Jx")
+df_output_sd <- df%>%select("Kx","Lx", "Mx", "Nx")
+df_output <- df%>%select("Gx","Hx", "Ix", "Jx","Kx","Lx", "Mx", "Nx")
+```
+
+## CLUSTERING BASED ON OUTPUT MEAN
+
+## Select optimum number of clusters
+```{r}
+fviz_nbclust(NbClust(df_output_mean, distance = "euclidean", index = "all", method = "ward.D2"))
+```
+
+## Hierarchical clustering
+```{r}
+d <- dist(df_output_mean, method = "euclidean")
+link.ward.D2 <- hclust(d, method = "ward.D2")
+```
+
+## Input boxplot by cluster
+```{r}
+clust.3 <- cutree(link.ward.D2, k = 3)
+ggplot(data = reshape2::melt(pareto.IO %>% select("Ax", "Bx", "Dx", "Cx", "Fx", "Ex") %>% mutate(row.ID = 1:nrow(pareto.IO)),
+                             id.vars = c("row.ID")) %>% 
+           left_join(.,
+                     data.frame(row.ID = 1:nrow(df),
+                                cluster = clust.3),
+                     by = c("row.ID"))) + 
+    geom_boxplot( mapping = aes(x = cluster, y=value, fill = as.factor(cluster))) + 
+    facet_wrap(~variable, scales = "free") + 
+    scale_fill_discrete("Cluster")+theme_bw()
+```
+
+## Output boxplot by cluster
+```{r}
+clust.3 <- cutree(link.ward.D2, k = 3)
+ggplot(data = reshape2::melt(pareto.IO %>% select("Gx","Hx", "Ix", "Jx") %>% mutate(row.ID = 1:nrow(pareto.IO)),
+                             id.vars = c("row.ID")) %>% 
+           left_join(.,
+                     data.frame(row.ID = 1:nrow(df),
+                                cluster = clust.3),
+                     by = c("row.ID"))) + 
+    geom_boxplot( mapping = aes(x = cluster, y=value, fill = as.factor(cluster))) + 
+    facet_wrap(~variable, scales = "free") + 
+    scale_fill_discrete("Cluster")+theme_bw()
+```
+
+## Matrix of scatterplots for visual inspection
+```{r}
+matrix.df <-df_output_mean
+matrix.df$cluster <- as.factor(clust.3)
+ggpairs(matrix.df,columns = 1:4, bins=10, aes(colour = cluster))
+```
+
+
+
+## Calculate the correlation matrix for output.  
+```{r}
+cor.matrix <- cor(df_output_mean)
+corrplot::corrplot(cor.matrix, order = "hclust", addrect = 3)
+```
+
+## Calculate the correlation matrix for input+output.  
+```{r}
+cor.matrix <- cor(df)
+corrplot::corrplot(cor.matrix, order = "hclust", addrect = 3)
+```
+
+## Hierarchical clustering dendogram
+```{r}
+fviz_dend(link.ward.D2, k = 3, rect = TRUE)
+```
+
+
+## CLUSTERING BASED ON OUTPUT STDEV
+
+## Select optimum number of clusters
+```{r}
+fviz_nbclust(NbClust(df_output_sd, distance = "euclidean", index = "all", method = "ward.D2"))
+```
+
+## Hierarchical clustering
+```{r}
+d <- dist(df_output_sd, method = "euclidean")
+link.ward.D2 <- hclust(d, method = "ward.D2")
+```
+
+## Input boxplot by cluster
+```{r}
+clust.4 <- cutree(link.ward.D2, k = 4)
+ggplot(data = reshape2::melt(pareto.IO %>% select("Ax", "Bx", "Dx", "Cx", "Fx", "Ex") %>% mutate(row.ID = 1:nrow(pareto.IO)),
+                             id.vars = c("row.ID")) %>% 
+           left_join(.,
+                     data.frame(row.ID = 1:nrow(df),
+                                cluster = clust.4),
+                     by = c("row.ID"))) + 
+    geom_boxplot( mapping = aes(x = cluster, y=value, fill = as.factor(cluster))) + 
+    facet_wrap(~variable, scales = "free") + 
+    scale_fill_discrete("Cluster")+theme_bw()
+```
+
+## Output boxplot by cluster
+```{r}
+clust.4 <- cutree(link.ward.D2, k = 4)
+ggplot(data = reshape2::melt(pareto.IO %>% select("Kx","Lx", "Mx", "Nx") %>% mutate(row.ID = 1:nrow(pareto.IO)),
+                             id.vars = c("row.ID")) %>% 
+           left_join(.,
+                     data.frame(row.ID = 1:nrow(df),
+                                cluster = clust.4),
+                     by = c("row.ID"))) + 
+    geom_boxplot( mapping = aes(x = cluster, y=value, fill = as.factor(cluster))) + 
+    facet_wrap(~variable, scales = "free") + 
+    scale_fill_discrete("Cluster")+theme_bw()
+```
+
+## Matrix of scatterplots for visual inspection
+```{r}
+matrix.df <-df_output_sd
+matrix.df$cluster <- as.factor(clust.4)
+ggpairs(matrix.df,columns = 1:4, bins=10, aes(colour = cluster))
+```
+
+
+## Calculate the correlation matrix for output.  
+```{r}
+cor.matrix <- cor(df_output_sd)
+corrplot::corrplot(cor.matrix, order = "hclust", addrect = 4)
+```
+
+## Calculate the correlation matrix for input+output.  
+```{r}
+cor.matrix <- cor(df)
+corrplot::corrplot(cor.matrix, order = "hclust", addrect = 4)
+```
+
+## Hierarchical clustering dendogram
+```{r}
+fviz_dend(link.ward.D2, k = 4, rect = TRUE)
+```
+
+
+## CLUSTERING BASED ON BOTH OUTPUT SUMMARY STATISTICS
+
+## Select optimum number of clusters
+```{r}
+fviz_nbclust(NbClust(df_output, distance = "euclidean", index = "all", method = "ward.D2"))
+```
+
+## Hierarchical clustering
+```{r}
+d <- dist(df_output, method = "euclidean")
+link.ward.D2 <- hclust(d, method = "ward.D2")
+```
+
+## Input boxplot by cluster
+```{r}
+clust.3 <- cutree(link.ward.D2, k = 3)
+ggplot(data = reshape2::melt(pareto.IO %>% select("Ax", "Bx", "Dx", "Cx", "Fx", "Ex") %>% mutate(row.ID = 1:nrow(pareto.IO)),
+                             id.vars = c("row.ID")) %>% 
+           left_join(.,
+                     data.frame(row.ID = 1:nrow(df),
+                                cluster = clust.3),
+                     by = c("row.ID"))) + 
+    geom_boxplot( mapping = aes(x = cluster, y=value, fill = as.factor(cluster))) + 
+    facet_wrap(~variable, scales = "free") + 
+    scale_fill_discrete("Cluster")+theme_bw()
+```
+
+## Output boxplot by cluster
+```{r}
+clust.3 <- cutree(link.ward.D2, k = 3)
+ggplot(data = reshape2::melt(pareto.IO %>% select("Gx","Hx", "Ix", "Jx","Kx","Lx", "Mx", "Nx") %>% mutate(row.ID = 1:nrow(pareto.IO)),
+                             id.vars = c("row.ID")) %>% 
+           left_join(.,
+                     data.frame(row.ID = 1:nrow(df),
+                                cluster = clust.3),
+                     by = c("row.ID"))) + 
+    geom_boxplot( mapping = aes(x = cluster, y=value, fill = as.factor(cluster))) + 
+    facet_wrap(~variable, scales = "free") + 
+    scale_fill_discrete("Cluster")+theme_bw()
+```
+
+## Matrix of scatterplots for visual inspection
+```{r}
+matrix.df <-df_output
+matrix.df$cluster <- as.factor(clust.3)
+ggpairs(matrix.df,columns = 1:8, bins=10, aes(colour = cluster))
+```
+
+
+
+## Calculate the correlation matrix for output.  
+```{r}
+cor.matrix <- cor(df_output)
+corrplot::corrplot(cor.matrix, order = "hclust", addrect = 3)
+```
+
+## Calculate the correlation matrix for input+output.  
+```{r}
+cor.matrix <- cor(df)
+corrplot::corrplot(cor.matrix, order = "hclust", addrect = 3)
+```
+
+## Hierarchical clustering dendogram
+```{r}
+fviz_dend(link.ward.D2, k = 3, rect = TRUE)
+```
+
+
+
+## CLUSTERING BASED ON BOTH OUTPUT SUMMARY STATISTICS, WITH K=4
+
+## Hierarchical clustering
+```{r}
+d <- dist(df_output, method = "euclidean")
+link.ward.D2 <- hclust(d, method = "ward.D2")
+```
+
+## Input boxplot by cluster
+```{r}
+clustAll.4 <- cutree(link.ward.D2, k = 4)
+ggplot(data = reshape2::melt(pareto.IO %>% select("Ax", "Bx", "Dx", "Cx", "Fx", "Ex") %>% mutate(row.ID = 1:nrow(pareto.IO)),
+                             id.vars = c("row.ID")) %>% 
+           left_join(.,
+                     data.frame(row.ID = 1:nrow(df),
+                                cluster = clustAll.4),
+                     by = c("row.ID"))) + 
+    geom_boxplot( mapping = aes(x = cluster, y=value, fill = as.factor(cluster))) + 
+    facet_wrap(~variable, scales = "free") + 
+    scale_fill_discrete("Cluster")+theme_bw()
+```
+
+## Output boxplot by cluster
+```{r}
+ggplot(data = reshape2::melt(pareto.IO %>% select("Gx","Hx", "Ix", "Jx","Kx","Lx", "Mx", "Nx") %>% mutate(row.ID = 1:nrow(pareto.IO)),
+                             id.vars = c("row.ID")) %>% 
+           left_join(.,
+                     data.frame(row.ID = 1:nrow(df),
+                                cluster = clustAll.4),
+                     by = c("row.ID"))) + 
+    geom_boxplot( mapping = aes(x = cluster, y=value, fill = as.factor(cluster))) + 
+    facet_wrap(~variable, scales = "free") + 
+    scale_fill_discrete("Cluster")+theme_bw()
+```
+
+## Matrix of scatterplots for visual inspection
+```{r}
+matrix.df <-df_output
+matrix.df$cluster <- as.factor(clustAll.4)
+ggpairs(matrix.df,columns = 1:8, bins=10, aes(colour = cluster))
+```
+
+
+## Calculate the correlation matrix for output.  
+```{r}
+cor.matrix <- cor(df_output)
+corrplot::corrplot(cor.matrix, order = "hclust", addrect = 3)
+```
+
+## Calculate the correlation matrix for input+output.  
+```{r}
+cor.matrix <- cor(df)
+corrplot::corrplot(cor.matrix, order = "hclust", addrect = 3)
+```
+
+## Hierarchical clustering dendogram
+```{r}
+fviz_dend(link.ward.D2, k = 4, rect = TRUE)
+```
+
+
+
+## 3D Plots to visualize Pareto Design
+```{r}
+clustered.df <-pareto.IO
+clustered.df$cluster <- as.factor(clust.3)
+plot_ly(clustered.df, x = ~Bx, y = ~Ax, z =~Dx, marker = list(color = ~cluster, colorscale = c('#FFE1A1', '#683531'), showscale = TRUE)) %>%
+    add_markers() %>%
+    layout(scene = list(xaxis = list(title = 'Ax'),
+                        yaxis = list(title = 'Bx'),
+                        zaxis = list(title = 'Dx')),
+            annotations = list(
+           x = 1.13,
+           y = 1.05,
+           text = 'Cluster',
+           xref = 'paper',
+           yref = 'paper',
+           showarrow = FALSE
+         ))
+```
+
+```{r}
+plot_ly(clustered.df, x = ~Cx, y = ~Fx, z =~Ex, marker = list(color = ~cluster, colorscale = c('#FFE1A1', '#683531'), showscale = TRUE)) %>%
+    add_markers() %>%
+    layout(scene = list(xaxis = list(title = 'Cx'),
+                        yaxis = list(title = 'Fx'),
+                        zaxis = list(title = 'Ex')),
+            annotations = list(
+           x = 1.13,
+           y = 1.05,
+           text = 'Cluster',
+           xref = 'paper',
+           yref = 'paper',
+           showarrow = FALSE
+         ))
+```
+
+```{r}
+plot_ly(clustered.df, x = ~Hx, y = ~Ix, z =~Jx, marker = list(color = ~cluster, colorscale = c('#FFE1A1', '#683531'), showscale = TRUE)) %>%
+    add_markers() %>%
+    layout(scene = list(xaxis = list(title = 'Hx'),
+                        yaxis = list(title = 'Ix'),
+                        zaxis = list(title = 'Jx')),
+            annotations = list(
+           x = 1.13,
+           y = 1.05,
+           text = 'Cluster',
+           xref = 'paper',
+           yref = 'paper',
+           showarrow = FALSE
+         ))
+```
